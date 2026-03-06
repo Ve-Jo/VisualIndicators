@@ -1,0 +1,70 @@
+language: en
+
+combat:
+  enabled: true
+  format: "<#ffffff>-{amount}<#ff5555>♥"
+  stacked-format: "<#ffffff>-{amount}<#ff5555>♥ <gray>x{count}"
+  display-duration: 38
+  upward-speed: 0.03
+  vertical-offset: 0.6
+  scale: 1.35
+  random-offset:
+    enabled: true
+    x: 0.5
+    y: 0.25
+    z: 0.5
+  stack:
+    merge-window-ticks: 12
+    radius: 2.75
+  disabled-worlds: []
+  show-on-players: false
+  entity-filter:
+    whitelist-mode: false
+    entities: []
+
+xp:
+  enabled: true
+  format: "<#55ff55>+{amount} XP <#ffff55>{skill}"
+  stacked-format: "<#55ff55>+{amount} XP <#ffff55>{skill} <gray>x{count}"
+  display-duration: 32
+  upward-speed: 0.025
+  vertical-offset: 1.15
+  scale: 1.25
+  locale: ru-RU
+  random-offset:
+    enabled: false
+    x: 0.25
+    y: 0.15
+    z: 0.25
+  stack:
+    merge-window-ticks: 16
+    radius: 2.5
+
+chat:
+  enabled: true
+  symbols-per-line: 30
+  symbols-limit: -1
+  time-to-exist: 10
+  visible-to-sender: true
+  scaling-enabled: true
+  scaling-coefficient: 0.05
+  gap-between-messages: 0.3
+  gap-above-head: 0.8
+  text-color: "#FFFFFF"
+  background-enabled: true
+  background-color: "#000000"
+  background-transparency-percentage: 25
+  shadowed: true
+  pivot-axis: VERTICAL
+  placeholderapi-integration: false
+  color-placeholder: "%ezcolors_color%"
+  line-format: "&[defaultColor]&[colorPlaceholder][message]"
+
+multimine:
+  enabled: true
+  reset-all-on-break: true
+  ignore-insta-break: true
+  fade:
+    start-delay: 40
+    interval: 20
+    amount: 0.1

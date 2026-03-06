@@ -1,0 +1,7 @@
+command:
+  usage: "&eUsage: /visualindicators <reload|toggle [all|combat|xp]>"
+  no-permission: "&cYou don't have permission to use this command."
+  reload-success: "&aVisualIndicators configuration reloaded successfully."
+  player-only: "&cThis command can only be used by players."
+  toggle-enabled: "&a{channel} indicators enabled."
+  toggle-disabled: "&c{channel} indicators disabled."
