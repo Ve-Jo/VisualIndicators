@@ -6,8 +6,8 @@ combat:
   stacked-format: "<#ffffff>-{amount}<#ff5555>♥ <gray>x{count}"
   display-duration: 38
   upward-speed: 0.03
-  vertical-offset: 0.6
-  scale: 1.35
+  vertical-offset: 0.2
+  scale: 1.2
   random-offset:
     enabled: true
     x: 0.5
@@ -15,7 +15,7 @@ combat:
     z: 0.5
   stack:
     merge-window-ticks: 12
-    radius: 2.75
+    radius: 4.0
   disabled-worlds: []
   show-on-players: false
   entity-filter:
@@ -29,7 +29,7 @@ xp:
   display-duration: 32
   upward-speed: 0.025
   vertical-offset: 1.15
-  scale: 1.25
+  scale: 1.15
   locale: ru-RU
   random-offset:
     enabled: false
@@ -38,7 +38,7 @@ xp:
     z: 0.25
   stack:
     merge-window-ticks: 16
-    radius: 2.5
+    radius: 4
 
 chat:
   enabled: true
