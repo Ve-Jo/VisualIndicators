@@ -14,9 +14,11 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Interaction;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
+import org.bukkit.persistence.PersistentDataHolder;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Transformation;
 import org.joml.Vector3f;
@@ -35,6 +37,9 @@ public final class IndicatorService {
     private static final String INDICATOR_TAG = "visualindicators";
     private static final String COMBAT_TAG = "visualindicators:combat";
     private static final String CHAT_TAG = "visualindicators:chat";
+    private static final int DISPLAY_INTERPOLATION_DURATION = 2;
+    private static final int DISPLAY_TELEPORT_DURATION = 1;
+    private static final float CHAT_ANCHOR_WIDTH = 0.0F;
     private final VisualIndicatorsPlugin plugin;
     private final PluginSettings settings;
     private final MiniMessage miniMessage = MiniMessage.miniMessage();
@@ -98,15 +103,26 @@ public final class IndicatorService {
             return;
         }
 
+        Interaction anchor = world.spawn(location, Interaction.class, entity -> {
+            entity.setInteractionWidth(CHAT_ANCHOR_WIDTH);
+            entity.setInteractionHeight((float) chat.gapAboveHead());
+            entity.setInvulnerable(true);
+            entity.setGravity(false);
+            markEntity(entity, IndicatorType.CHAT);
+        });
+
         TextDisplay display = world.spawn(location, TextDisplay.class, entity -> {
             entity.setBillboard(chat.pivotAxis());
             entity.setAlignment(TextDisplay.TextAlignment.CENTER);
             entity.setSeeThrough(true);
             entity.setShadowed(chat.shadowed());
+            entity.setInterpolationDelay(0);
+            entity.setInterpolationDuration(DISPLAY_INTERPOLATION_DURATION);
+            entity.setTeleportDuration(DISPLAY_TELEPORT_DURATION);
             entity.setDefaultBackground(false);
             entity.setBackgroundColor(chatBackgroundColor());
             entity.text(renderText(IndicatorType.CHAT, 0.0D, 1, formattedMessage));
-            markDisplay(entity, IndicatorType.CHAT);
+            markEntity(entity, IndicatorType.CHAT);
             Transformation transformation = entity.getTransformation();
             float initialScale = calculateScale(IndicatorType.CHAT, renderPlainText(IndicatorType.CHAT, 0.0D, 1, formattedMessage), 1.0F);
             transformation.getScale().set(new Vector3f(initialScale, initialScale, initialScale));
@@ -114,7 +130,10 @@ public final class IndicatorService {
             entity.setTextOpacity((byte) 255);
         });
 
+        anchor.addPassenger(display);
+
         if (!chat.visibleToSender()) {
+            player.hideEntity(this.plugin, anchor);
             player.hideEntity(this.plugin, display);
         }
 
@@ -122,6 +141,7 @@ public final class IndicatorService {
                 IndicatorType.CHAT,
                 player.getUniqueId() + ":chat:" + this.tick + ":" + this.activeIndicators.size(),
                 display,
+                anchor,
                 location,
                 0.0D,
                 1,
@@ -136,6 +156,7 @@ public final class IndicatorService {
         );
         applyVisualState(created);
         this.activeIndicators.add(created);
+        rebuildChatPassengerChains();
     }
 
     private Location baseLocation(Location location, double yOffset, boolean randomOffsetEnabled, double randomOffsetX, double randomOffsetY, double randomOffsetZ) {
@@ -175,6 +196,9 @@ public final class IndicatorService {
             entity.setBillboard(Display.Billboard.CENTER);
             entity.setAlignment(TextDisplay.TextAlignment.CENTER);
             entity.setSeeThrough(true);
+            entity.setInterpolationDelay(0);
+            entity.setInterpolationDuration(DISPLAY_INTERPOLATION_DURATION);
+            entity.setTeleportDuration(DISPLAY_TELEPORT_DURATION);
             entity.setDefaultBackground(false);
             entity.setBackgroundColor(BACKGROUND_COLOR);
             entity.text(renderText(type, amount, 1, label));
@@ -186,7 +210,7 @@ public final class IndicatorService {
             entity.setTextOpacity((byte) 255);
         });
 
-        ActiveIndicator created = new ActiveIndicator(type, mergeKey, display, location, amount, 1, label, upwardSpeed, scale, this.tick, this.tick + displayDuration, this.tick, null, 0);
+        ActiveIndicator created = new ActiveIndicator(type, mergeKey, display, null, location, amount, 1, label, upwardSpeed, scale, this.tick, this.tick + displayDuration, this.tick, null, 0);
         applyVisualState(created);
         this.activeIndicators.add(created);
     }
@@ -278,13 +302,20 @@ public final class IndicatorService {
         Iterator<ActiveIndicator> iterator = this.activeIndicators.iterator();
         while (iterator.hasNext()) {
             ActiveIndicator indicator = iterator.next();
-            if (!indicator.display.isValid()) {
+            if (!indicator.display.isValid() || (indicator.anchor != null && !indicator.anchor.isValid())) {
                 iterator.remove();
                 continue;
             }
             if (this.tick >= indicator.expiresAtTick) {
-                indicator.display.remove();
+                removeIndicatorEntities(indicator);
                 iterator.remove();
+                if (indicator.type == IndicatorType.CHAT) {
+                    rebuildChatPassengerChains();
+                }
+                continue;
+            }
+            if (indicator.type == IndicatorType.CHAT) {
+                applyVisualState(indicator);
                 continue;
             }
             Location nextLocation = nextLocation(indicator);
@@ -297,7 +328,7 @@ public final class IndicatorService {
     private void updateChatStacks() {
         List<ActiveIndicator> chatIndicators = new ArrayList<>();
         for (ActiveIndicator indicator : this.activeIndicators) {
-            if (indicator.type == IndicatorType.CHAT && indicator.ownerId != null && indicator.display.isValid()) {
+            if (indicator.type == IndicatorType.CHAT && indicator.ownerId != null && indicator.display.isValid() && indicator.anchor != null && indicator.anchor.isValid()) {
                 chatIndicators.add(indicator);
             }
         }
@@ -317,27 +348,58 @@ public final class IndicatorService {
                 ownerIndicators.get(index).stackIndex = index;
             }
         }
+        rebuildChatPassengerChains();
+    }
+
+    private void rebuildChatPassengerChains() {
+        PluginSettings.ChatSettings chat = this.settings.chat();
+        List<UUID> processedOwners = new ArrayList<>();
+        for (ActiveIndicator indicator : this.activeIndicators) {
+            if (indicator.type != IndicatorType.CHAT || indicator.ownerId == null || indicator.anchor == null || !indicator.anchor.isValid() || !indicator.display.isValid()) {
+                continue;
+            }
+            if (processedOwners.contains(indicator.ownerId)) {
+                continue;
+            }
+            processedOwners.add(indicator.ownerId);
+            Player owner = Bukkit.getPlayer(indicator.ownerId);
+            if (owner == null || !owner.isOnline()) {
+                continue;
+            }
+            List<ActiveIndicator> ownerIndicators = this.activeIndicators.stream()
+                    .filter(active -> active.type == IndicatorType.CHAT)
+                    .filter(active -> indicator.ownerId.equals(active.ownerId))
+                    .filter(active -> active.anchor != null && active.anchor.isValid() && active.display.isValid())
+                    .sorted(Comparator.comparingInt((ActiveIndicator active) -> active.stackIndex))
+                    .toList();
+            for (ActiveIndicator active : ownerIndicators) {
+                Entity vehicle = active.anchor.getVehicle();
+                if (vehicle != null) {
+                    vehicle.removePassenger(active.anchor);
+                }
+                Entity passengerVehicle = active.display.getVehicle();
+                if (passengerVehicle != null) {
+                    passengerVehicle.removePassenger(active.display);
+                }
+                active.anchor.setInteractionWidth(CHAT_ANCHOR_WIDTH);
+                active.anchor.setInteractionHeight(active.stackIndex == 0 ? (float) chat.gapAboveHead() : (float) chat.gapBetweenMessages());
+                active.anchor.setGravity(false);
+                active.anchor.setInvulnerable(true);
+                active.anchor.addPassenger(active.display);
+            }
+            Entity seat = owner;
+            for (ActiveIndicator active : ownerIndicators) {
+                seat.addPassenger(active.anchor);
+                seat = active.display;
+            }
+        }
     }
 
     private Location nextLocation(ActiveIndicator indicator) {
         if (indicator.type != IndicatorType.CHAT || indicator.ownerId == null) {
             return indicator.display.getLocation().add(0.0D, indicator.upwardSpeed, 0.0D);
         }
-
-        Player owner = Bukkit.getPlayer(indicator.ownerId);
-        if (owner == null || !owner.isOnline()) {
-            indicator.display.remove();
-            return indicator.location;
-        }
-
-        PluginSettings.ChatSettings chat = this.settings.chat();
-        long livedTicks = Math.max(0L, this.tick - indicator.createdAtTick);
-        double rise = livedTicks * indicator.upwardSpeed;
-        return owner.getLocation().add(
-                0.0D,
-                owner.getHeight() + chat.gapAboveHead() + (indicator.stackIndex * chat.gapBetweenMessages()) + rise,
-                0.0D
-        );
+        return indicator.display.getLocation();
     }
 
     private void applyVisualState(ActiveIndicator indicator) {
@@ -450,6 +512,14 @@ public final class IndicatorService {
                 display.remove();
                 removed++;
             }
+            for (Entity entity : world.getEntitiesByClass(Interaction.class)) {
+                Interaction interaction = (Interaction) entity;
+                if (!shouldCleanup(interaction)) {
+                    continue;
+                }
+                interaction.remove();
+                removed++;
+            }
         }
         return removed;
     }
@@ -464,15 +534,39 @@ public final class IndicatorService {
         display.getPersistentDataContainer().set(this.indicatorTypeKey, PersistentDataType.STRING, type.name());
     }
 
-    private boolean shouldCleanup(TextDisplay display) {
-        String taggedType = display.getPersistentDataContainer().get(this.indicatorTypeKey, PersistentDataType.STRING);
+    private void markEntity(PersistentDataHolder entity, IndicatorType type) {
+        if (entity instanceof Entity bukkitEntity) {
+            bukkitEntity.addScoreboardTag(INDICATOR_TAG);
+            if (type == IndicatorType.CHAT) {
+                bukkitEntity.addScoreboardTag(CHAT_TAG);
+            } else if (type == IndicatorType.COMBAT) {
+                bukkitEntity.addScoreboardTag(COMBAT_TAG);
+            }
+        }
+        entity.getPersistentDataContainer().set(this.indicatorTypeKey, PersistentDataType.STRING, type.name());
+    }
+
+    private boolean shouldCleanup(Entity entity) {
+        if (!(entity instanceof PersistentDataHolder holder)) {
+            return false;
+        }
+        String taggedType = holder.getPersistentDataContainer().get(this.indicatorTypeKey, PersistentDataType.STRING);
         if (taggedType != null) {
             return taggedType.equals(IndicatorType.CHAT.name()) || taggedType.equals(IndicatorType.COMBAT.name());
         }
-        if (display.getScoreboardTags().contains(CHAT_TAG) || display.getScoreboardTags().contains(COMBAT_TAG)) {
+        if (entity.getScoreboardTags().contains(CHAT_TAG) || entity.getScoreboardTags().contains(COMBAT_TAG)) {
             return true;
         }
-        return isLegacyCombatDisplay(display) || isLegacyChatDisplay(display);
+        return entity instanceof TextDisplay display && (isLegacyCombatDisplay(display) || isLegacyChatDisplay(display));
+    }
+
+    private void removeIndicatorEntities(ActiveIndicator indicator) {
+        if (indicator.display.isValid()) {
+            indicator.display.remove();
+        }
+        if (indicator.anchor != null && indicator.anchor.isValid()) {
+            indicator.anchor.remove();
+        }
     }
 
     private boolean isLegacyCombatDisplay(TextDisplay display) {
@@ -539,9 +633,7 @@ public final class IndicatorService {
 
     public void shutdown() {
         for (ActiveIndicator indicator : this.activeIndicators) {
-            if (indicator.display.isValid()) {
-                indicator.display.remove();
-            }
+            removeIndicatorEntities(indicator);
         }
         this.activeIndicators.clear();
     }
@@ -550,6 +642,7 @@ public final class IndicatorService {
         private final IndicatorType type;
         private final String mergeKey;
         private final TextDisplay display;
+        private final Interaction anchor;
         private Location location;
         private double totalAmount;
         private int count;
@@ -562,12 +655,13 @@ public final class IndicatorService {
         private final UUID ownerId;
         private int stackIndex;
 
-        private ActiveIndicator(IndicatorType type, String mergeKey, TextDisplay display, Location location, double totalAmount,
+        private ActiveIndicator(IndicatorType type, String mergeKey, TextDisplay display, Interaction anchor, Location location, double totalAmount,
                                 int count, String label, double upwardSpeed, float scale, long createdAtTick, long expiresAtTick,
                                 long lastMergeTick, UUID ownerId, int stackIndex) {
             this.type = type;
             this.mergeKey = mergeKey;
             this.display = display;
+            this.anchor = anchor;
             this.location = location;
             this.totalAmount = totalAmount;
             this.count = count;
