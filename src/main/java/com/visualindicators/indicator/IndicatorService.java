@@ -64,16 +64,15 @@ public final class IndicatorService {
         upsert(IndicatorType.COMBAT, mergeKey, location, amount, combat.mergeRadius(), combat.mergeWindowTicks(), combat.displayDuration(), combat.upwardSpeed(), combat.scale(), null);
     }
 
-    public void spawnXpIndicator(Player player, Location origin, double amount, String skillName, String sourceName, String skillKey) {
+    public void spawnXpIndicator(Player player, Location origin, double amount, String skillName, String skillKey) {
         PluginSettings.XpSettings xp = this.settings.xp();
         if (!xp.enabled()) {
             return;
         }
         Location safeOrigin = origin == null ? player.getLocation() : origin;
         Location location = baseLocation(safeOrigin, xp.verticalOffset(), xp.randomOffsetEnabled(), xp.randomOffsetX(), xp.randomOffsetY(), xp.randomOffsetZ());
-        String label = sourceName == null || sourceName.isBlank() ? skillName : skillName + " • " + sourceName;
         String mergeKey = player.getUniqueId() + ":xp:" + skillKey;
-        upsert(IndicatorType.XP, mergeKey, location, amount, xp.mergeRadius(), xp.mergeWindowTicks(), xp.displayDuration(), xp.upwardSpeed(), xp.scale(), label);
+        upsert(IndicatorType.XP, mergeKey, location, amount, xp.mergeRadius(), xp.mergeWindowTicks(), xp.displayDuration(), xp.upwardSpeed(), xp.scale(), skillName);
     }
 
     public void spawnChatIndicator(Player player, String rawMessage) {
@@ -269,7 +268,7 @@ public final class IndicatorService {
                 .replace("{amount}", this.decimalFormat.format(amount))
                 .replace("{count}", Integer.toString(count))
                 .replace("{skill}", label == null ? "" : label)
-                .replace("{source}", label == null ? "" : label);
+                .replace("{source}", "");
         return text;
     }
 

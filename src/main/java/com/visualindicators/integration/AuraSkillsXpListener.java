@@ -5,7 +5,6 @@ import dev.aurelium.auraskills.api.event.skill.DamageXpGainEvent;
 import dev.aurelium.auraskills.api.event.skill.EntityXpGainEvent;
 import dev.aurelium.auraskills.api.event.skill.XpGainEvent;
 import dev.aurelium.auraskills.api.skill.Skill;
-import dev.aurelium.auraskills.api.source.XpSource;
 import dev.aurelium.auraskills.api.source.type.BlockXpSource;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -67,12 +66,10 @@ public final class AuraSkillsXpListener implements Listener {
 
         Locale locale = this.plugin.settings().xp().locale();
         String skillName = resolveSkillName(event.getSkill(), locale);
-        XpSource source = event.getSource();
-        String sourceName = resolveSourceName(source, locale);
         String skillKey = event.getSkill().name().toLowerCase(Locale.ENGLISH);
         Location location = resolveLocation(event, player);
 
-        this.plugin.indicatorService().spawnXpIndicator(player, location, event.getAmount(), skillName, sourceName, skillKey);
+        this.plugin.indicatorService().spawnXpIndicator(player, location, event.getAmount(), skillName, skillKey);
     }
 
     private String resolveSkillName(Skill skill, Locale locale) {
@@ -87,17 +84,6 @@ public final class AuraSkillsXpListener implements Listener {
             }
         }
         return toReadableName(skill.name());
-    }
-
-    private String resolveSourceName(XpSource source, Locale locale) {
-        if (source == null) {
-            return "";
-        }
-        String translated = sanitizeLabel(source.getDisplayName(locale));
-        if (!translated.isBlank()) {
-            return translated;
-        }
-        return toReadableName(source.name());
     }
 
     private String sanitizeLabel(String input) {
