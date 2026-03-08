@@ -40,6 +40,31 @@ xp:
     merge-window-ticks: 16
     radius: 4
 
+social:
+  enabled: true
+  format: "<#ffcf66>{action}"
+  stacked-format: "<#ffcf66>{action} <gray>x{count}"
+  display-duration: 36
+  upward-speed: 0.015
+  vertical-offset: 1.2
+  scale: 1.1
+  max-distance: 8.0
+  random-offset:
+    enabled: true
+    x: 0.35
+    y: 0.2
+    z: 0.35
+  stack:
+    merge-window-ticks: 8
+    radius: 2.5
+  disabled-worlds: []
+  actions:
+    default: "Взаимодействие"
+    hug: "Объятие"
+    kiss: "Поцелуй"
+    carry: "Покатушки"
+    carry_stop: "Завершили покатушки"
+
 chat:
   enabled: true
   symbols-per-line: 30

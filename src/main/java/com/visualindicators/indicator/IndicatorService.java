@@ -36,6 +36,7 @@ import java.util.regex.Pattern;
 public final class IndicatorService {
     private static final String INDICATOR_TAG = "visualindicators";
     private static final String COMBAT_TAG = "visualindicators:combat";
+    private static final String SOCIAL_TAG = "visualindicators:social";
     private static final String CHAT_TAG = "visualindicators:chat";
     private static final int DISPLAY_INTERPOLATION_DURATION = 2;
     private static final int DISPLAY_TELEPORT_DURATION = 1;
@@ -78,6 +79,38 @@ public final class IndicatorService {
         Location location = baseLocation(safeOrigin, xp.verticalOffset(), xp.randomOffsetEnabled(), xp.randomOffsetX(), xp.randomOffsetY(), xp.randomOffsetZ());
         String mergeKey = player.getUniqueId() + ":xp:" + skillKey;
         upsert(IndicatorType.XP, mergeKey, location, amount, xp.mergeRadius(), xp.mergeWindowTicks(), xp.displayDuration(), xp.upwardSpeed(), xp.scale(), skillName);
+    }
+
+    public void spawnSocialIndicator(Player actor, Player target, String actionKey) {
+        PluginSettings.SocialSettings social = this.settings.social();
+        if (!social.enabled()) {
+            return;
+        }
+        if (actor == null || target == null || !actor.isOnline() || !target.isOnline()) {
+            return;
+        }
+        if (!this.plugin.preferencesStore().isSocialEnabled(actor.getUniqueId())) {
+            return;
+        }
+        if (actor.getWorld() == null || target.getWorld() == null || !actor.getWorld().equals(target.getWorld())) {
+            return;
+        }
+        if (social.worldDisabled(actor.getWorld().getName())) {
+            return;
+        }
+        if (social.maxDistance() > 0.0D && actor.getLocation().distanceSquared(target.getLocation()) > social.maxDistance() * social.maxDistance()) {
+            return;
+        }
+
+        Location midpoint = midpoint(actor, target);
+        if (midpoint == null) {
+            return;
+        }
+        double height = Math.max(actor.getHeight(), target.getHeight());
+        Location location = baseLocation(midpoint, height + social.verticalOffset(), social.randomOffsetEnabled(), social.randomOffsetX(), social.randomOffsetY(), social.randomOffsetZ());
+        String normalizedAction = normalizeSocialAction(actionKey);
+        String mergeKey = orderedPairKey(actor.getUniqueId(), target.getUniqueId()) + ":social:" + normalizedAction;
+        upsert(IndicatorType.SOCIAL, mergeKey, location, 0.0D, social.mergeRadius(), social.mergeWindowTicks(), social.displayDuration(), social.upwardSpeed(), social.scale(), social.resolveAction(normalizedAction));
     }
 
     public void spawnChatIndicator(Player player, String rawMessage) {
@@ -258,6 +291,39 @@ public final class IndicatorService {
         );
     }
 
+    private Location midpoint(Player first, Player second) {
+        if (first == null || second == null) {
+            return null;
+        }
+        if (first.getWorld() == null || second.getWorld() == null || !first.getWorld().equals(second.getWorld())) {
+            return null;
+        }
+        Location firstLocation = first.getLocation();
+        Location secondLocation = second.getLocation();
+        return new Location(
+                first.getWorld(),
+                (firstLocation.getX() + secondLocation.getX()) / 2.0D,
+                (firstLocation.getY() + secondLocation.getY()) / 2.0D,
+                (firstLocation.getZ() + secondLocation.getZ()) / 2.0D,
+                firstLocation.getYaw(),
+                firstLocation.getPitch()
+        );
+    }
+
+    private String normalizeSocialAction(String actionKey) {
+        if (actionKey == null || actionKey.isBlank()) {
+            return "default";
+        }
+        return actionKey.toLowerCase(Locale.ENGLISH).replace(' ', '_');
+    }
+
+    private String orderedPairKey(UUID first, UUID second) {
+        if (first.compareTo(second) <= 0) {
+            return first + ":" + second;
+        }
+        return second + ":" + first;
+    }
+
     private Component renderText(ActiveIndicator indicator) {
         return renderText(indicator.type, indicator.totalAmount, indicator.count, indicator.label);
     }
@@ -285,6 +351,8 @@ public final class IndicatorService {
         String template;
         if (type == IndicatorType.COMBAT) {
             template = count > 1 ? this.settings.combat().stackedFormat() : this.settings.combat().format();
+        } else if (type == IndicatorType.SOCIAL) {
+            template = count > 1 ? this.settings.social().stackedFormat() : this.settings.social().format();
         } else {
             template = count > 1 ? this.settings.xp().stackedFormat() : this.settings.xp().format();
         }
@@ -292,6 +360,7 @@ public final class IndicatorService {
                 .replace("{amount}", this.decimalFormat.format(amount))
                 .replace("{count}", Integer.toString(count))
                 .replace("{skill}", label == null ? "" : label)
+                .replace("{action}", label == null ? "" : label)
                 .replace("{source}", "");
         return text;
     }
@@ -459,6 +528,14 @@ public final class IndicatorService {
             return baseScale * factor;
         }
 
+        if (type == IndicatorType.SOCIAL) {
+            if (length <= 24) {
+                return baseScale;
+            }
+            float factor = Math.max(0.6F, 1.0F - (length - 24) * 0.016F);
+            return baseScale * factor;
+        }
+
         if (length <= 18) {
             return baseScale;
         }
@@ -530,6 +607,8 @@ public final class IndicatorService {
             display.addScoreboardTag(CHAT_TAG);
         } else if (type == IndicatorType.COMBAT) {
             display.addScoreboardTag(COMBAT_TAG);
+        } else if (type == IndicatorType.SOCIAL) {
+            display.addScoreboardTag(SOCIAL_TAG);
         }
         display.getPersistentDataContainer().set(this.indicatorTypeKey, PersistentDataType.STRING, type.name());
     }
@@ -541,6 +620,8 @@ public final class IndicatorService {
                 bukkitEntity.addScoreboardTag(CHAT_TAG);
             } else if (type == IndicatorType.COMBAT) {
                 bukkitEntity.addScoreboardTag(COMBAT_TAG);
+            } else if (type == IndicatorType.SOCIAL) {
+                bukkitEntity.addScoreboardTag(SOCIAL_TAG);
             }
         }
         entity.getPersistentDataContainer().set(this.indicatorTypeKey, PersistentDataType.STRING, type.name());
@@ -552,9 +633,9 @@ public final class IndicatorService {
         }
         String taggedType = holder.getPersistentDataContainer().get(this.indicatorTypeKey, PersistentDataType.STRING);
         if (taggedType != null) {
-            return taggedType.equals(IndicatorType.CHAT.name()) || taggedType.equals(IndicatorType.COMBAT.name());
+            return taggedType.equals(IndicatorType.CHAT.name()) || taggedType.equals(IndicatorType.COMBAT.name()) || taggedType.equals(IndicatorType.SOCIAL.name());
         }
-        if (entity.getScoreboardTags().contains(CHAT_TAG) || entity.getScoreboardTags().contains(COMBAT_TAG)) {
+        if (entity.getScoreboardTags().contains(CHAT_TAG) || entity.getScoreboardTags().contains(COMBAT_TAG) || entity.getScoreboardTags().contains(SOCIAL_TAG)) {
             return true;
         }
         return entity instanceof TextDisplay display && (isLegacyCombatDisplay(display) || isLegacyChatDisplay(display));

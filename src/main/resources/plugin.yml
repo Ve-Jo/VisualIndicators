@@ -7,7 +7,7 @@ softdepend: [ AuraSkills ]
 commands:
   visualindicators:
     description: VisualIndicators main command
-    usage: /visualindicators <reload|toggle [all|combat|xp]>
+    usage: /visualindicators <reload|toggle [all|combat|xp|social]>
     aliases: [ vi ]
 permissions:
   visualindicators.reload:

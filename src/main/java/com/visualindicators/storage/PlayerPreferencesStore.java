@@ -29,20 +29,35 @@ public final class PlayerPreferencesStore {
         return this.states.getOrDefault(playerId, PreferenceState.enabled()).xpEnabled();
     }
 
+    public boolean isSocialEnabled(UUID playerId) {
+        return this.states.getOrDefault(playerId, PreferenceState.enabled()).socialEnabled();
+    }
+
     public boolean toggle(UUID playerId, PreferenceChannel channel) {
         PreferenceState current = this.states.getOrDefault(playerId, PreferenceState.enabled());
         PreferenceState updated;
         if (channel == PreferenceChannel.COMBAT) {
-            updated = new PreferenceState(!current.combatEnabled(), current.xpEnabled());
+            updated = new PreferenceState(!current.combatEnabled(), current.xpEnabled(), current.socialEnabled());
         } else if (channel == PreferenceChannel.XP) {
-            updated = new PreferenceState(current.combatEnabled(), !current.xpEnabled());
+            updated = new PreferenceState(current.combatEnabled(), !current.xpEnabled(), current.socialEnabled());
+        } else if (channel == PreferenceChannel.SOCIAL) {
+            updated = new PreferenceState(current.combatEnabled(), current.xpEnabled(), !current.socialEnabled());
         } else {
-            boolean enableAll = !(current.combatEnabled() && current.xpEnabled());
-            updated = new PreferenceState(enableAll, enableAll);
+            boolean enableAll = !(current.combatEnabled() && current.xpEnabled() && current.socialEnabled());
+            updated = new PreferenceState(enableAll, enableAll, enableAll);
         }
         this.states.put(playerId, updated);
         save();
-        return channel == PreferenceChannel.XP ? updated.xpEnabled() : channel == PreferenceChannel.COMBAT ? updated.combatEnabled() : updated.combatEnabled() && updated.xpEnabled();
+        if (channel == PreferenceChannel.XP) {
+            return updated.xpEnabled();
+        }
+        if (channel == PreferenceChannel.COMBAT) {
+            return updated.combatEnabled();
+        }
+        if (channel == PreferenceChannel.SOCIAL) {
+            return updated.socialEnabled();
+        }
+        return updated.combatEnabled() && updated.xpEnabled() && updated.socialEnabled();
     }
 
     private void load() {
@@ -60,7 +75,8 @@ public final class PlayerPreferencesStore {
                 UUID uuid = UUID.fromString(key);
                 boolean combat = players.getBoolean(key + ".combat", true);
                 boolean xp = players.getBoolean(key + ".xp", true);
-                this.states.put(uuid, new PreferenceState(combat, xp));
+                boolean social = players.getBoolean(key + ".social", true);
+                this.states.put(uuid, new PreferenceState(combat, xp, social));
             } catch (IllegalArgumentException exception) {
                 this.plugin.getLogger().warning("Invalid player UUID in preferences: " + key);
             }
@@ -73,6 +89,7 @@ public final class PlayerPreferencesStore {
             String path = "players." + entry.getKey();
             config.set(path + ".combat", entry.getValue().combatEnabled());
             config.set(path + ".xp", entry.getValue().xpEnabled());
+            config.set(path + ".social", entry.getValue().socialEnabled());
         }
         try {
             config.save(this.file);
@@ -81,9 +98,9 @@ public final class PlayerPreferencesStore {
         }
     }
 
-    private record PreferenceState(boolean combatEnabled, boolean xpEnabled) {
+    private record PreferenceState(boolean combatEnabled, boolean xpEnabled, boolean socialEnabled) {
         private static PreferenceState enabled() {
-            return new PreferenceState(true, true);
+            return new PreferenceState(true, true, true);
         }
     }
 }

@@ -3,11 +3,14 @@ package com.visualindicators.config;
 import com.visualindicators.VisualIndicatorsPlugin;
 import org.bukkit.entity.Display;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.EntityType;
 
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 public final class PluginSettings {
@@ -16,6 +19,7 @@ public final class PluginSettings {
     private CombatSettings combat;
     private XpSettings xp;
     private ChatSettings chat;
+    private SocialSettings social;
     private MultiMineSettings multiMine;
 
     public PluginSettings(VisualIndicatorsPlugin plugin) {
@@ -86,6 +90,25 @@ public final class PluginSettings {
                 config.getString("chat.line-format", "&[defaultColor]&[colorPlaceholder][message]")
         );
 
+        this.social = new SocialSettings(
+                config.getBoolean("social.enabled", true),
+                config.getString("social.format", "<#ffcf66>{action}"),
+                config.getString("social.stacked-format", "<#ffcf66>{action} <gray>x{count}"),
+                config.getInt("social.display-duration", 30),
+                config.getDouble("social.upward-speed", 0.015D),
+                config.getDouble("social.vertical-offset", 1.15D),
+                config.getBoolean("social.random-offset.enabled", true),
+                config.getDouble("social.random-offset.x", 0.35D),
+                config.getDouble("social.random-offset.y", 0.20D),
+                config.getDouble("social.random-offset.z", 0.35D),
+                config.getInt("social.stack.merge-window-ticks", 8),
+                config.getDouble("social.stack.radius", 2.0D),
+                (float) config.getDouble("social.scale", 1.1D),
+                config.getDouble("social.max-distance", 8.0D),
+                new HashSet<>(config.getStringList("social.disabled-worlds")),
+                parseSocialActions(config.getConfigurationSection("social.actions"))
+        );
+
         this.multiMine = new MultiMineSettings(
                 config.getBoolean("multimine.enabled", true),
                 config.getBoolean("multimine.reset-all-on-break", true),
@@ -133,8 +156,27 @@ public final class PluginSettings {
         return this.chat;
     }
 
+    public SocialSettings social() {
+        return this.social;
+    }
+
     public MultiMineSettings multiMine() {
         return this.multiMine;
+    }
+
+    private Map<String, String> parseSocialActions(ConfigurationSection section) {
+        Map<String, String> actions = new LinkedHashMap<>();
+        if (section == null) {
+            return actions;
+        }
+        for (String key : section.getKeys(false)) {
+            String value = section.getString(key);
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            actions.put(key.toLowerCase(Locale.ENGLISH), value);
+        }
+        return actions;
     }
 
     public record CombatSettings(boolean enabled, String format, String stackedFormat, int displayDuration,
@@ -169,6 +211,24 @@ public final class PluginSettings {
                                boolean backgroundEnabled, String backgroundColor, int backgroundTransparencyPercentage,
                                boolean shadowed, Display.Billboard pivotAxis, boolean placeholderApiIntegration,
                                String colorPlaceholder, String lineFormat) {
+    }
+
+    public record SocialSettings(boolean enabled, String format, String stackedFormat, int displayDuration,
+                                 double upwardSpeed, double verticalOffset, boolean randomOffsetEnabled,
+                                 double randomOffsetX, double randomOffsetY, double randomOffsetZ,
+                                 int mergeWindowTicks, double mergeRadius, float scale,
+                                 double maxDistance, Set<String> disabledWorlds, Map<String, String> actions) {
+        public boolean worldDisabled(String worldName) {
+            return this.disabledWorlds.contains(worldName);
+        }
+
+        public String resolveAction(String key) {
+            if (key == null || key.isBlank()) {
+                return this.actions.getOrDefault("default", "Interaction");
+            }
+            String normalized = key.toLowerCase(Locale.ENGLISH);
+            return this.actions.getOrDefault(normalized, this.actions.getOrDefault("default", key));
+        }
     }
 
     public record MultiMineSettings(boolean enabled, boolean resetAllOnBreak, boolean ignoreInstaBreak,

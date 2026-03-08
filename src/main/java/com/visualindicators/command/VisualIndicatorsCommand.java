@@ -68,6 +68,7 @@ public final class VisualIndicatorsCommand implements CommandExecutor, TabComple
         return switch (input.toLowerCase(Locale.ENGLISH)) {
             case "combat" -> PreferenceChannel.COMBAT;
             case "xp" -> PreferenceChannel.XP;
+            case "social" -> PreferenceChannel.SOCIAL;
             case "all" -> PreferenceChannel.ALL;
             default -> null;
         };
@@ -86,7 +87,7 @@ public final class VisualIndicatorsCommand implements CommandExecutor, TabComple
             return completions;
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("toggle") && sender.hasPermission("visualindicators.toggle")) {
-            for (String option : List.of("all", "combat", "xp")) {
+            for (String option : List.of("all", "combat", "xp", "social")) {
                 if (option.startsWith(args[1].toLowerCase(Locale.ENGLISH))) {
                     completions.add(option);
                 }
