@@ -13,6 +13,12 @@ It is designed for modern Paper/Purpur servers using `TextDisplay` entities and 
 
 ## Features
 
+- **Player toggle system**
+  - per-player enable/disable for each indicator type
+  - `/visualindicators toggle <all|combat|xp|chat>` command
+  - preferences persist across sessions
+  - stored in JSON per player UUID
+
 - **Combat damage holograms**
   - animated floating damage numbers
   - stacked damage merging for fast-hit scenarios
@@ -87,18 +93,19 @@ This plugin was built by combining and adapting ideas from several existing plug
 
 - **`/visualindicators reload`**
   - reloads plugin config and language messages
+  - permission: `visualindicators.reload`
 
-- **`/visualindicators toggle all`**
-  - toggles both combat and XP indicators for the executing player
-
-- **`/visualindicators toggle combat`**
-  - toggles combat indicators for the executing player
-
-- **`/visualindicators toggle xp`**
-  - toggles XP indicators for the executing player
+- **`/visualindicators toggle <all|combat|xp|chat>`**
+  - toggles indicators for the executing player
+  - `all` - toggles combat, xp, and chat indicators
+  - `combat` - toggles combat damage indicators only
+  - `xp` - toggles AuraSkills XP indicators only  
+  - `chat` - toggles chat messages above head only
+  - permission: `visualindicators.toggle`
+  - preferences persist across sessions
 
 - **Alias**
-  - `/vi`
+  - `/vi` - shortcut for all commands
 
 ## Permissions
 
@@ -262,10 +269,23 @@ src/main/java/com/visualindicators/
 
 ## Notes
 
-- The current player toggle command only supports `combat`, `xp`, and `all`.
-- Chat visibility toggling is not exposed as a command yet.
-- `placeholderapi-integration`, `color-placeholder`, and `line-format` exist for config compatibility, but PlaceholderAPI-based chat recoloring is not fully implemented yet.
-- Startup cleanup only targets stale `VisualIndicators` combat/chat holograms.
+- All indicator types (combat, xp, chat) can be toggled per-player using `/vi toggle <type>`
+- Player preferences are stored in `plugins/VisualIndicators/player-data/` as JSON files
+- `placeholderapi-integration`, `color-placeholder`, and `line-format` exist for config compatibility, but PlaceholderAPI-based chat recoloring is not fully implemented yet
+- Startup cleanup only targets stale `VisualIndicators` combat/chat holograms
+
+## Storage
+
+Player preferences are stored as JSON files in:
+```
+plugins/VisualIndicators/player-data/<player-uuid>.json
+```
+
+Each file contains the player's toggle states for each indicator channel:
+- `COMBAT` - combat damage indicators
+- `XP` - AuraSkills XP indicators  
+- `CHAT` - chat messages above head
+- `MISC` - reserved for future indicator types
 
 ## Credits
 

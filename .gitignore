@@ -3,3 +3,17 @@ target/
 *.iml
 *.log
 .DS_Store
+
+# Lock files
+*.lock
+package-lock.json
+yarn.lock
+composer.lock
+Gemfile.lock
+poetry.lock
+pnpm-lock.yaml
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
